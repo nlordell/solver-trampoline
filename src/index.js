@@ -119,51 +119,64 @@ if (result !== "0x") {
   throw new Error(`unexpected result ${result}`);
 }
 
-const [user, project, apiKey] = [
-  Deno.env.get("TENDERLY_USER"),
-  Deno.env.get("TENDERLY_PROJECT"),
-  Deno.env.get("TENDERLY_API_KEY"),
-];
+async function simulateGas(tx) {
+  const [user, project, apiKey] = [
+    Deno.env.get("TENDERLY_USER"),
+    Deno.env.get("TENDERLY_PROJECT"),
+    Deno.env.get("TENDERLY_API_KEY"),
+  ];
 
-const simulation = await fetch(
-  `https://api.tenderly.co/api/v1/account/${user}/project/${project}/simulate`,
-  {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-access-key": apiKey,
-    },
-    body: JSON.stringify({
-      network_id: `${chainId}`,
-      from: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-      to: trampoline.address,
-      input: trampoline.interface.encodeFunctionData("settle", [
-        emptySolution,
-        r,
-        s,
-        v,
-      ]),
-      state_objects: {
-        [trampoline.address]: {
-          code: trampoline.code,
-          storage: {
-            [slotNumber(0)]: slotNumber(1337),
-          },
-        },
-        [await settlement.authenticator()]: {
-          storage: {
-            [solverSlot(trampoline.address)]: slotNumber(1),
-            [solverSlot(solver.address)]: slotNumber(1),
-          },
-        },
+  const simulation = await fetch(
+    `https://api.tenderly.co/api/v1/account/${user}/project/${project}/simulate`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-access-key": apiKey,
       },
-      save: true,
-    }),
-  },
-);
+      body: JSON.stringify({
+        network_id: `${chainId}`,
+        state_objects: {
+          [trampoline.address]: {
+            code: trampoline.code,
+            storage: {
+              [slotNumber(0)]: slotNumber(1337),
+            },
+          },
+          [await settlement.authenticator()]: {
+            storage: {
+              [solverSlot(trampoline.address)]: slotNumber(1),
+              [solverSlot(solver.address)]: slotNumber(1),
+            },
+          },
+        },
+        ...tx,
+      }),
+    },
+  );
 
-if (!simulation.ok) {
-  throw new Error(await simulation.text());
+  if (!simulation.ok) {
+    throw new Error(await simulation.text());
+  }
+
+  const result = await simulation.json();
+  return result.transaction.gas_used;
 }
 
-console.log("OK");
+const bounced = await simulateGas({
+  from: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+  to: trampoline.address,
+  input: trampoline.interface.encodeFunctionData("settle", [
+    emptySolution,
+    r,
+    s,
+    v,
+  ]),
+});
+const direct = await simulateGas({
+  from: solver.address,
+  to: settlement.address,
+  input: emptySolution,
+});
+
+console.log(`OK: ${bounced - direct} gas overhead`);
