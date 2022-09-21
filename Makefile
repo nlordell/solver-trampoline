@@ -9,8 +9,8 @@ ARTIFACTS := $(patsubst %,contracts/build/%.json,$(CONTRACTS))
 .PHONY: run
 run: contracts
 	deno run \
-		--allow-env=INFURA_PROJECT_ID \
-		--allow-net=mainnet.infura.io \
+		--allow-env=INFURA_PROJECT_ID,TENDERLY_USER,TENDERLY_PROJECT,TENDERLY_API_KEY \
+		--allow-net=mainnet.infura.io,api.tenderly.co \
 		src/index.js
 
 .PHONY: contracts
