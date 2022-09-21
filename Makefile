@@ -6,6 +6,13 @@ SOLFLAGS := --metadata-hash none --optimize --optimize-runs 1000000
 CONTRACTS := SolverTrampoline
 ARTIFACTS := $(patsubst %,contracts/build/%.json,$(CONTRACTS))
 
+.PHONY: run
+run: contracts
+	deno run \
+		--allow-env=INFURA_PROJECT_ID \
+		--allow-net=mainnet.infura.io \
+		src/index.js
+
 .PHONY: contracts
 contracts: $(ARTIFACTS)
 
